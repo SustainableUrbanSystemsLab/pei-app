@@ -34,38 +34,21 @@ const MapComponent = ({ city, year, metricWeights }) => {
     geoDataArray.forEach((geoData, index) => {
       const metric = metrics[index];
       metricLookups[metric] = {};
-      geoData.features.forEach((feature, featureIndex) => {
+      geoData.features.forEach((feature) => {
         const geoid = feature.properties.GEOID;
-        // Handle LDI's different data structure
-        let value = 0;
-        if (metric === 'LDI') {
-          // LDI has the value directly in properties.LDI
-          value = parseFloat(feature.properties.LDI) || 0;
-          // LDI doesn't have GEOID, so we'll use the feature index for matching
-          metricLookups[metric][`ldi_${featureIndex}`] = value;
-        } else {
-          // Other metrics use the standard structure
-          value = parseFloat(feature.properties[metric]) || 0;
-          metricLookups[metric][geoid] = value;
-        }
+        const value = parseFloat(feature.properties[metric]) || 0;
+        metricLookups[metric][geoid] = value;
       });
     });
     
     // Calculate composite scores for each feature
-    const compositeFeatures = baseGeoData.features.map((feature, featureIndex) => {
+    const compositeFeatures = baseGeoData.features.map((feature) => {
       const geoid = feature.properties.GEOID;
       let compositeScore = 0;
       
       // Calculate weighted average
       metrics.forEach(metric => {
-        let value = 0;
-        if (metric === 'LDI') {
-          // LDI uses feature index for matching since it doesn't have GEOID
-          value = metricLookups[metric][`ldi_${featureIndex}`] || 0;
-        } else {
-          // Other metrics use GEOID for matching
-          value = metricLookups[metric][geoid] || 0;
-        }
+        const value = metricLookups[metric][geoid] || 0;
         const weight = weights[metric] || 0;
         compositeScore += (value * weight) / totalWeight;
       });
@@ -77,15 +60,7 @@ const MapComponent = ({ city, year, metricWeights }) => {
           compositeScore: compositeScore,
           // Keep individual metric values for tooltip
           ...metrics.reduce((acc, metric) => {
-            let value = 0;
-            if (metric === 'LDI') {
-              // LDI uses feature index for matching since it doesn't have GEOID
-              value = metricLookups[metric][`ldi_${featureIndex}`] || 0;
-            } else {
-              // Other metrics use GEOID for matching
-              value = metricLookups[metric][geoid] || 0;
-            }
-            acc[metric] = value;
+            acc[metric] = metricLookups[metric][geoid] || 0;
             return acc;
           }, {})
         }
@@ -105,9 +80,9 @@ const MapComponent = ({ city, year, metricWeights }) => {
     try {
       console.log(`Fetching multiple GeoJSONs for ${city} ${year}`);
       
-      // Fetch all metric GeoJSONs in parallel
+      // Fetch all metric GeoJSONs in parallel (with cache-busting)
       const promises = metrics.map(metric => 
-        axios.get(`${baseUrl}/${city}_blockgroup_${metric}_${year}.geojson`)
+        axios.get(`${baseUrl}/${city}_blockgroup_${metric}_${year}.geojson?t=${Date.now()}`)
       );
       
       const responses = await Promise.all(promises);

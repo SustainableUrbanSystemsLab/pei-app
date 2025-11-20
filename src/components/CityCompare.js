@@ -38,36 +38,24 @@ const CityCompare = () => {
     geoDataArray.forEach((geoData, index) => {
       const metric = metrics[index];
       metricLookups[metric] = {};
-      geoData.features.forEach((feature, featureIndex) => {
+      geoData.features.forEach((feature) => {
         const geoid = feature.properties.GEOID;
-        // Handle LDI's different data structure
-        let value = 0;
-        if (metric === 'LDI') {
-          // LDI has the value directly in properties.LDI
-          value = parseFloat(feature.properties.LDI) || 0;
-          // LDI doesn't have GEOID, so we'll use the feature index for matching
-          metricLookups[metric][`ldi_${featureIndex}`] = value;
-        } else {
-          // Other metrics use the standard structure
-          value = parseFloat(feature.properties[metric]) || 0;
-          metricLookups[metric][geoid] = value;
+        const rawValue = feature.properties[metric];
+        const value = rawValue !== undefined && rawValue !== null 
+          ? parseFloat(rawValue) 
+          : 0;
+        if (geoid) {
+          metricLookups[metric][String(geoid)] = isNaN(value) ? 0 : value;
         }
       });
     });
     
-    const compositeFeatures = baseGeoData.features.map((feature, featureIndex) => {
-      const geoid = feature.properties.GEOID;
+    const compositeFeatures = baseGeoData.features.map((feature) => {
+      const geoid = String(feature.properties.GEOID);
       let compositeScore = 0;
       
       metrics.forEach(metric => {
-        let value = 0;
-        if (metric === 'LDI') {
-          // LDI uses feature index for matching since it doesn't have GEOID
-          value = metricLookups[metric][`ldi_${featureIndex}`] || 0;
-        } else {
-          // Other metrics use GEOID for matching
-          value = metricLookups[metric][geoid] || 0;
-        }
+        const value = metricLookups[metric][geoid] || 0;
         const weight = weights[metric] || 0;
         compositeScore += (value * weight) / totalWeight;
       });
@@ -94,7 +82,7 @@ const CityCompare = () => {
     
     try {
       const promises = metrics.map(metric => 
-        axios.get(`${baseUrl}/${selectedCity}_blockgroup_${metric}_${year}.geojson`)
+        axios.get(`${baseUrl}/${selectedCity}_blockgroup_${metric}_${year}.geojson?t=${Date.now()}`)
       );
       
       const responses = await Promise.all(promises);
